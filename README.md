@@ -155,25 +155,28 @@ Frontend will be available at: http://localhost:3000
 
 ## 🔑 Environment Variables
 
-Create a `.env` file in the root directory with:
+Create a `.env` file in the backend directory with your own configuration:
 
 ```env
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/stratify_db
+DATABASE_URL=sqlite:///./stratify.db
 
 # JWT
-SECRET_KEY=your-secret-key-min-32-chars
+SECRET_KEY=<generate-your-own-secret-key>
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 
 # API Keys
-FRED_API_KEY=your-fred-api-key
-NEWS_API_KEY=your-newsapi-key
-COINGECKO_API_KEY=optional-for-free-tier
+FRED_API_KEY=<get-from-fred.stlouisfed.org>
+NEWS_API_KEY=<get-from-newsapi.org>
+COINGECKO_API_KEY=<optional-for-free-tier>
 
 # Ollama (local LLM)
 OLLAMA_BASE_URL=http://localhost:11434/v1
 OLLAMA_MODEL=llama3.1:8b
+
+# CORS
+ALLOWED_ORIGINS=http://localhost:3000
 
 # Application
 APP_NAME=Stratify AI
