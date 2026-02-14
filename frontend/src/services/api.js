@@ -113,11 +113,22 @@ export const analysisAPI = {
   },
 
   /**
-   * Generate PDF for a report
+   * Generate and download PDF for a report
    */
   generatePDF: async (reportId) => {
-    const response = await api.post(`/analysis/generate-pdf/${reportId}`);
-    return response.data;
+    const response = await api.post(`/analysis/generate-pdf/${reportId}`, {}, {
+      responseType: 'blob'
+    });
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `stratify_report_${reportId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    return { success: true };
   },
 };
 

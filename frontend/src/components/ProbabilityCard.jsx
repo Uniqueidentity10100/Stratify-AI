@@ -1,65 +1,84 @@
-/**
- * Probability Card Component
- * Displays probability score with visual indicator
- */
 import React from 'react';
 
 export default function ProbabilityCard({ title, subtitle, probability, narrative }) {
-  // Calculate percentage
-  const percentage = (probability * 100).toFixed(0);
+  const percentage = Math.round(probability * 100);
 
-  // Determine color based on probability
-  const getColor = (prob) => {
-    if (prob > 0.7) return { bg: 'bg-green-500', text: 'text-green-400', border: 'border-green-500' };
-    if (prob > 0.6) return { bg: 'bg-green-400', text: 'text-green-300', border: 'border-green-400' };
-    if (prob > 0.4) return { bg: 'bg-yellow-500', text: 'text-yellow-400', border: 'border-yellow-500' };
-    if (prob > 0.3) return { bg: 'bg-orange-500', text: 'text-orange-400', border: 'border-orange-500' };
-    return { bg: 'bg-red-500', text: 'text-red-400', border: 'border-red-500' };
+  const getColors = (p) => {
+    if (p > 0.7) return { stroke: '#22c55e', text: 'text-emerald-400', label: 'Strongly Positive', bg: 'from-emerald-500/10 to-emerald-500/5', border: 'border-emerald-500/15' };
+    if (p > 0.6) return { stroke: '#4ade80', text: 'text-green-400', label: 'Moderately Positive', bg: 'from-green-500/10 to-green-500/5', border: 'border-green-500/15' };
+    if (p > 0.4) return { stroke: '#eab308', text: 'text-yellow-400', label: 'Neutral', bg: 'from-yellow-500/10 to-yellow-500/5', border: 'border-yellow-500/15' };
+    if (p > 0.3) return { stroke: '#f97316', text: 'text-orange-400', label: 'Moderately Negative', bg: 'from-orange-500/10 to-orange-500/5', border: 'border-orange-500/15' };
+    return { stroke: '#ef4444', text: 'text-red-400', label: 'Strongly Negative', bg: 'from-red-500/10 to-red-500/5', border: 'border-red-500/15' };
   };
 
-  const colors = getColor(probability);
+  const c = getColors(probability);
 
-  const getOutlook = (prob) => {
-    if (prob > 0.7) return 'Strongly Positive';
-    if (prob > 0.6) return 'Moderately Positive';
-    if (prob > 0.4) return 'Neutral';
-    if (prob > 0.3) return 'Moderately Negative';
-    return 'Strongly Negative';
-  };
+  // SVG Gauge
+  const size = 150;
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - probability * circumference;
 
   return (
-    <div className={`bg-slate-800 rounded-lg shadow-xl p-6 border-l-4 ${colors.border}`}>
+    <div className={`glass rounded-2xl p-6 card-hover bg-gradient-to-b ${c.bg} ${c.border}`}>
       {/* Header */}
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="text-sm text-slate-400">{subtitle}</p>
+      <div className="text-center mb-5">
+        <h3 className="text-base font-semibold text-white">{title}</h3>
+        <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
       </div>
 
-      {/* Probability Score */}
-      <div className="mb-4">
-        <div className="flex items-baseline gap-2">
-          <span className={`text-5xl font-bold ${colors.text}`}>
-            {percentage}
-          </span>
-          <span className="text-2xl text-slate-500">%</span>
+      {/* Animated SVG Gauge */}
+      <div className="flex justify-center mb-5">
+        <div className="relative">
+          <svg width={size} height={size} className="transform -rotate-90">
+            {/* Background track */}
+            <circle
+              cx={size / 2} cy={size / 2} r={radius}
+              fill="none"
+              stroke="rgba(51,65,85,0.25)"
+              strokeWidth={strokeWidth}
+            />
+            {/* Glow filter */}
+            <defs>
+              <filter id={`glow-${title.replace(/\s/g, '')}`} x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            {/* Value arc */}
+            <circle
+              cx={size / 2} cy={size / 2} r={radius}
+              fill="none"
+              stroke={c.stroke}
+              strokeWidth={strokeWidth}
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              className="gauge-animate"
+              filter={`url(#glow-${title.replace(/\s/g, '')})`}
+            />
+          </svg>
+          {/* Center value */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`text-4xl font-bold ${c.text} tracking-tight`}>{percentage}</span>
+            <span className="text-xs text-slate-500 font-medium">percent</span>
+          </div>
         </div>
-        <p className={`text-sm font-medium mt-1 ${colors.text}`}>
-          {getOutlook(probability)}
-        </p>
       </div>
 
-      {/* Progress Bar */}
-      <div className="w-full bg-slate-700 rounded-full h-2 mb-4">
-        <div
-          className={`${colors.bg} h-2 rounded-full transition-all duration-500`}
-          style={{ width: `${percentage}%` }}
-        />
+      {/* Outlook Badge */}
+      <div className="text-center mb-4">
+        <span className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${c.text} bg-white/5 border ${c.border}`}>
+          {c.label}
+        </span>
       </div>
 
       {/* Narrative */}
-      <div className="text-sm text-slate-300 leading-relaxed">
-        {narrative}
-      </div>
+      <p className="text-sm text-slate-400 leading-relaxed text-center">{narrative}</p>
     </div>
   );
 }

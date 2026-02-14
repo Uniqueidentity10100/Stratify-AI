@@ -3,9 +3,11 @@ Analysis routes
 Main routes for asset analysis and report generation
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Dict
 from datetime import datetime
+import os
 
 from app.database import get_db
 from app.models.user import User
@@ -48,6 +50,9 @@ def analyze_asset(
     
     asset_profile = None
     asset_found = False
+    coin_image = ""
+    coin_description = ""
+    display_market_data = {}
     
     if coin_data:
         # Asset found in CoinGecko - get detailed data
@@ -62,6 +67,31 @@ def analyze_asset(
             asset_profile = scoring_engine.create_asset_profile_from_coingecko(market_data)
             asset_profile["asset_name"] = details.get("name", asset_name)
             asset_profile["symbol"] = details.get("symbol", "").upper()
+            
+            # Extract enriched data for frontend display
+            coin_image = details.get("image", {}).get("large", "")
+            coin_description = (details.get("description", {}).get("en", "") or "")[:500]
+            
+            def _safe_usd(val):
+                if isinstance(val, dict):
+                    return val.get("usd", 0)
+                return val if val is not None else 0
+            
+            display_market_data = {
+                "current_price": _safe_usd(market_data.get("current_price")),
+                "market_cap": _safe_usd(market_data.get("market_cap")),
+                "total_volume": _safe_usd(market_data.get("total_volume")),
+                "price_change_24h": market_data.get("price_change_percentage_24h", 0) or 0,
+                "price_change_7d": market_data.get("price_change_percentage_7d", 0) or 0,
+                "price_change_30d": market_data.get("price_change_percentage_30d", 0) or 0,
+                "market_cap_rank": market_data.get("market_cap_rank"),
+                "ath": _safe_usd(market_data.get("ath")),
+                "ath_change_percentage": _safe_usd(market_data.get("ath_change_percentage")),
+                "high_24h": _safe_usd(market_data.get("high_24h")),
+                "low_24h": _safe_usd(market_data.get("low_24h")),
+                "circulating_supply": market_data.get("circulating_supply", 0) or 0,
+                "total_supply": market_data.get("total_supply", 0) or 0,
+            }
     
     if not asset_found:
         # Asset not found - return message to create custom profile
@@ -108,10 +138,19 @@ def analyze_asset(
         })
     
     # News events
-    for article in crypto_news[:3]:
+    news_with_sentiment = []
+    for article in crypto_news[:5]:
         sentiment = macro_service.classify_event_sentiment(
             article['title'] + " " + article.get('description', '')
         )
+        
+        news_with_sentiment.append({
+            "title": article.get("title", ""),
+            "source": article.get("source", "Unknown"),
+            "url": article.get("url", ""),
+            "published_at": article.get("published_at", ""),
+            "sentiment": round(sentiment, 2)
+        })
         
         macro_events.append({
             "event_type": "regulation",
@@ -156,6 +195,21 @@ def analyze_asset(
         asset_data_quality=asset_profile.get('data_quality', 'medium')
     )
     
+    # Build factor breakdown for frontend
+    factor_breakdown = {
+        "volatility": round(asset_profile.get("volatility_level", 0.5), 2),
+        "liquidity": round(1.0 - asset_profile.get("liquidity_sensitivity", 0.5), 2),
+        "regulation_exposure": round(asset_profile.get("regulation_sensitivity", 0.5), 2),
+        "interest_rate_impact": round(asset_profile.get("interest_rate_sensitivity", 0.5), 2),
+        "geopolitical_risk": round(asset_profile.get("geopolitical_sensitivity", 0.5), 2),
+    }
+    
+    # Collect macro data for frontend
+    macro_display = {
+        "interest_rate": interest_rate_data,
+        "inflation": inflation_data
+    }
+    
     # Step 6: Save report to database
     report = Report(
         user_id=current_user.id,
@@ -179,12 +233,18 @@ def analyze_asset(
         "asset_found": True,
         "asset_name": asset_profile['asset_name'],
         "symbol": asset_profile.get('symbol', ''),
+        "image": coin_image,
+        "description": coin_description,
+        "market_data": display_market_data,
         "probabilities": probabilities,
         "narratives": narratives,
         "most_likely_scenario": most_likely,
         "confidence_level": confidence,
         "report_id": str(report.id),
-        "macro_events_analyzed": len(macro_events)
+        "macro_events_analyzed": len(macro_events),
+        "news_sources": news_with_sentiment,
+        "macro_data": macro_display,
+        "factor_breakdown": factor_breakdown
     }
 
 
@@ -268,8 +328,9 @@ def generate_pdf_report(
     report.pdf_path = pdf_path
     db.commit()
     
-    return {
-        "message": "PDF generated successfully",
-        "pdf_path": pdf_path,
-        "filename": pdf_path.split("/")[-1]
-    }
+    return FileResponse(
+        path=pdf_path,
+        media_type='application/pdf',
+        filename=os.path.basename(pdf_path),
+        headers={"Content-Disposition": f"attachment; filename={os.path.basename(pdf_path)}"}
+    )
